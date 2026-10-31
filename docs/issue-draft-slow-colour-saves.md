@@ -39,11 +39,12 @@ sample $(pgrep -f TLXClientDemo.exe | head -1) 10 1 -mayDie -file ~/Desktop/samp
 vmmap $(pgrep -f TLXClientDemo.exe | head -1) > ~/Desktop/vmmap.txt
 ```
 
-Possible ways round it
+Possible speed improvements
 
-- Save raw and invert outside TLX. Works today, but you lose Kodak's scene balance and colour.
-- Speed up x87 under Rosetta. Two projects do this: [athei/x87sidecar](https://github.com/athei/x87sidecar) (active, no root needed in its Wine mode, needs the author's patched Wine) and [Lifeisawful/rosettax87](https://github.com/Lifeisawful/rosettax87) (archived, needs a root helper). I have not tried either yet. I plan to try x87sidecar on the Mac mini and will report back here.
-- An Intel Mac or a Windows machine, where x87 is native.
+Two projects speed up x87 under Rosetta. I have not tried either yet.
+
+- [athei/x87sidecar](https://github.com/athei/x87sidecar): translates x87 blocks to native ARM code in a separate helper process. Active, no root needed in its Wine mode, and needs the author's patched Wine. I plan to try it on the Mac mini and will report back here.
+- [Lifeisawful/rosettax87](https://github.com/Lifeisawful/rosettax87): swaps in faster, less precise x87 handlers. Archived (continued at [WineAndAqua/rosettax87](https://github.com/WineAndAqua/rosettax87)), and needs a helper running as root.
 
 This also ties into the Rosetta point in #3: the colour path depends on Rosetta's x87 support specifically.
 
