@@ -44,7 +44,7 @@ Possible speed improvements
 Two projects speed up x87 under Rosetta. I have not tried either yet.
 
 - [athei/x87sidecar](https://github.com/athei/x87sidecar): translates x87 blocks to native ARM code in a separate helper process. Active, no root needed in its Wine mode, and needs the author's patched Wine. I plan to try it on the Mac mini and will report back here.
-- [Lifeisawful/rosettax87](https://github.com/Lifeisawful/rosettax87): swaps in faster, less precise x87 handlers. Archived (continued at [WineAndAqua/rosettax87](https://github.com/WineAndAqua/rosettax87)), and needs a helper running as root.
+- [Lifeisawful/rosettax87](https://github.com/Lifeisawful/rosettax87): swaps in faster, less precise x87 handlers. Archived, and needs a helper running as root.
 
 This also ties into the Rosetta point in #3: the colour path depends on Rosetta's x87 support specifically.
 

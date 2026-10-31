@@ -214,9 +214,11 @@ during a save to regenerate).
   Wine (`athei/wine-build`, branches `cx-*-patched` in `athei/wine`), which
   re-execs 32-bit processes through `x87sidecar --cooperative` when
   `ROSETTA_X87_PATH` is set.
-- **Lifeisawful/rosettax87** (MIT, archived 2 Jan 2026; continued at
-  WineAndAqua/rosettax87): faster, less precise x87 handlers, ~4-5x; needs a
-  root helper; README lists macOS 15.5.
+- **Lifeisawful/rosettax87** (MIT, archived 2 Jan 2026): faster, less precise
+  x87 handlers, ~4-5x; needs a root helper; README lists macOS 15.5. (A
+  "WineAndAqua/rosettax87" continuation named in an earlier summary of its
+  README returns 404; don't cite it.) The same author has an active
+  `Lifeisawful/rosettax87_jit`; x87sidecar started as a fork of it.
 
 Either way, compare one colour frame against a stock save for differences.
 
