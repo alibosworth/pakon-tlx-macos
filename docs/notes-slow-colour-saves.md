@@ -6,8 +6,10 @@ Session notes so this can be picked up cold. Not upstream documentation.
 Kodak's x87 floating-point code running through Rosetta 2's software x87
 emulator (profiled: ~95% of busy time inside Rosetta). Same on the M1 laptop
 (macOS 15.7.7) and the M1 Mac mini (Tahoe), on Wine 9.0 / 11.0 / 11.20, with
-either set of MS runtime DLLs. The earlier "fast" saves were probably all
-raw, so this is likely not a regression. Next: try x87sidecar on the mini
+either set of MS runtime DLLs. Ali no longer believes he ever saw fast
+colour saves (earlier fast saves were raw), so this is a fundamental cost of
+running Kodak's code under Rosetta, not a regression. Reported upstream as
+such (draft: `docs/issue-draft-slow-colour-saves.md`). Next: try x87sidecar on the mini
 (see "Next steps").
 
 ## Symptom
