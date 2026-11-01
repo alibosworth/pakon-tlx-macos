@@ -2,7 +2,20 @@
 
 Session notes so this can be picked up cold. Not upstream documentation.
 
-**Current state (31 Oct, end of session):** the ~25 s per colour frame is
+**Update (31 Oct, Mac mini, 15:38): x87sidecar fixes it.** Colour 8-bit
+TIFF saves take **~3.3 s per frame** instead of ~25 s (about 8x), using
+athei's patched Wine `cx-26.3.0-9` with its bundled x87sidecar. No x87
+aborts. Compared against a stock rescan, three of four frames differ by
+only a few levels (normal rescan variation); one is ~20 levels brighter,
+probably from reframing. Ali accepts the trade. See "x87sidecar setup on the
+Mac mini", "x87sidecar result" and "Stock vs sidecar comparison". Follow-up
+for upstream issue #13: `docs/issue-13-followup-draft.md`.
+
+**1 Nov:** Mach9 (arm64 Wine + FEX, no Rosetta) won't start on macOS 26.4.1
+(missing libSystem symbol). Plan: update to 26.5 later and test; see "Next
+steps (as of 1 Nov)".
+
+**Earlier state (31 Oct, laptop session):** the ~25 s per colour frame is
 Kodak's x87 floating-point code running through Rosetta 2's software x87
 emulator (profiled: ~95% of busy time inside Rosetta). Same on the M1 laptop
 (macOS 15.7.7) and the M1 Mac mini (Tahoe), on Wine 9.0 / 11.0 / 11.20, with
@@ -252,7 +265,166 @@ so, nothing regressed: colour saves have always cost ~25 s/frame on Apple
 Silicon, because Kodak's x87 maths runs through Rosetta's software x87
 emulator. The problem becomes a speed-up, not a regression hunt.
 
-## Next steps (as of 31 Oct, picking up on the Mac mini)
+## x87sidecar setup on the Mac mini (31 Oct, afternoon)
+
+Mac mini: Macmini9,1, macOS 26.4.1 (25E253), RosettaUpdateAuto
+1.0.0.0.1775460258, `libRosettaRuntime` sha256 `6f54006d...a4b617056`.
+Stock Wine here is 11.0 at `/Applications/Wine Stable.app`.
+
+- `x87sidecar --probe` (v1.9.0 release, sha256 `104098b0...bc1e78`):
+  **supported** (Rosetta 26.4 opcode table; `translate_insn` x87 hook and
+  `decode_opcode` hook both ok; no FEAT_AFP).
+- Patched Wine: `athei/wine-build` release `cx-26.3.0-9` (CrossOver 26.3 base,
+  reports `wine-11.0`, x86_64 under Rosetta, minimum macOS 15), sha256
+  `af368205...bff1e9`. Bundles `bin/x87sidecar`, byte-identical to the v1.9.0
+  release. Unpacked to `~/Applications/Wine CX x87/wine/`.
+- Prefix clone: `~/.wine-x87` (APFS clone of `~/.wine`, taken while TLX was
+  running on `~/.wine`; if anything is odd, re-clone after `./run.sh stop`).
+- The patched `ntdll.so` reads `ROSETTA_X87_PATH`; on attach it logs
+  `attaching rosettax87 --cooperative ... for <exe>`, and on failure
+  `RUNNING WITHOUT X87 ACCELERATION`. Grep the client log for both.
+
+Launch:
+
+```
+./run.sh stop
+WINEPREFIX=~/.wine-x87 \
+ROSETTA_X87_PATH=~/Applications/"Wine CX x87"/wine/bin/x87sidecar \
+PAKON_WINE=~/Applications/"Wine CX x87"/wine/bin/wine ./run.sh
+```
+
+Known risk (from the README): by default, a guest memory fault inside
+sidecar-translated x87 code aborts the process with `unexpectedly need to
+EmulateForward on a synchronous exception`. If TLX dies with that, retry with
+`X87_PRECISE_FAULTS=1`.
+
+### First launch failed: disk full, not the sidecar
+
+The first launch (15:31) attached the sidecar fine (client log:
+`attaching rosettax87 --cooperative ... for ...TLXClientDemo.exe`) but TLX
+failed to initialise: `FN_bSelectHardDriveFS EC_PFS_NotEnoughDiskSpace (3016)`.
+TLX makes two roll buffers `PFS00.bin` / `PFS01.bin` of 2,516,582,400 bytes
+each (sparse) and seems to need room for both up front (~5.03 GB). The mini had
+2.0 GiB free (the patched Wine itself is 1.2 GB). With 5.52 GB free it starts.
+Note `./run.sh log` reads the OEM logs from `~/.wine` unless `WINEPREFIX` is
+set, so with the cloned prefix read `~/.wine-x87/.../Logs/` directly.
+
+### x87sidecar result (31 Oct, 15:38)
+
+Fresh scan of the 4-exposure strip, colour 8-bit TIFF to `P:`, timed by
+polling TLX CPU and the scans folder every 0.2 s:
+
+| file   | landed    |
+|--------|-----------|
+| (busy) | 15:38:26.6 |
+| 00.tif | 15:38:29  |
+| 0.tif  | 15:38:32.6 |
+| 1.tif  | 15:38:36.0 |
+| 2.tif  | 15:38:39.6 |
+
+~13 s for four frames, ~3.3 s each, vs ~25.7 s each on stock Wine. All
+18,000,246 bytes. Client log has no `RUNNING WITHOUT X87 ACCELERATION`,
+`EmulateForward` or `failed in block` lines. An earlier colour JPEG from the
+same Wine (`00.jpg`, 15:36) looks like a normal positive next to the
+stock-Wine `00A.jpg` (15:14), but they are different scans, so this is not
+yet a precision check.
+
+Still to do: check the output against stock Wine. TLX wipes its buffers at
+launch, so the same scan cannot be saved under both Wines. Plan: scan the
+strip twice on stock Wine and twice on the patched Wine, save the same frame
+each time, and compare the stock-vs-patched difference with the
+scan-to-scan difference within one Wine. If the first is no bigger than the
+second, the sidecar's binary64 maths makes no visible difference.
+
+### Stock vs sidecar comparison (31 Oct, 15:50)
+
+Rescanned the same strip on stock Wine 11 (`~/.wine`) and saved the same four
+frames as colour 8-bit TIFF: **~28 s each** (29.5, 27.3, 29.1, 27.5 s).
+Files: `~/Desktop/pakon-scans/slow/{00A,0A,1A,2A}.tif` (stock) vs
+`~/Desktop/pakon-scans/sidecar/{00,0,1,2}.tif` (sidecar). Compared with
+`tools/compare_saves.py` (aligns by phase correlation, crops a 40 px margin):
+
+| frame | shift (cols) | mean delta R/G/B (sidecar - stock) | mean abs diff, 8x8 blocks |
+|-------|----:|---------------------|------:|
+| 00    | 7  | +19.8 / +19.5 / +21.8 | 20.4 |
+| 0     | -3 | -2.7 / -4.1 / -3.2    | 3.7  |
+| 1     | -2 | +2.2 / +1.4 / +3.5    | 3.4  |
+| 2     | 2  | -0.6 / -2.2 / -0.6    | 3.5  |
+
+Frames 0-2 differ by a few levels, with the sign varying from frame to frame:
+what you'd expect from rescanning plus TLX's auto balance seeing slightly
+different framing. Frame 00 is ~20 levels brighter with the sidecar. That
+frame has blown leader along one edge, and a 7 px framing shift changes how
+much of it the auto balance sees, so framing is the likely cause, but this is
+not proven. A second stock scan of frame 00 would settle it. Ali, 31 Oct:
+the scan-to-scan difference is an acceptable trade for the speed, as long as
+raw saves are unaffected.
+
+Raw saves: under stock Wine they were already instant, which means they do
+little or no x87 maths, and the sidecar only changes how x87 instructions run.
+So raw output should be unchanged, but this has not been tested (rescans
+differ anyway, so a byte compare isn't possible). A way to check: run with
+`X87_PROFILE=...` and see whether any x87 blocks run during a raw save.
+
+### Mach9 (arm64 Wine + FEX): does not start on macOS 26.4.1 (1 Nov)
+
+Downloaded `athei/wine-build` `arm64-11.20-5` (sha256 `8083f8e8...0cad48`,
+1.13 GB unpacked, to `~/Applications/Mach9 Wine/`). The loader is Developer
+ID signed (team WLKUUJD25W, not notarized) and carries the
+`cross-architecture-support` entitlement, but `wine --version` dies at once:
+
+```
+dyld: Symbol not found: _posix_spawnattr_set_4k_page_size_np
+  Expected in: /usr/lib/libSystem.B.dylib
+```
+
+The binary says `minos 26.4` / `sdk 26.5` and the repo's `MACOS_FLOOR=26.4`,
+but the 4K-page spawn call it makes (in every `arm64-*` release since
+11.19-1) is missing from macOS 26.4.1's libSystem. So the real floor is
+higher than the stated one, which is worth reporting upstream.
+`softwareupdate --list` offered no macOS update on 31 Oct/1 Nov. Not tried
+further: it needs a newer macOS (probably 27). The CX Wine with x87sidecar
+was deleted for space (re-download `cx-26.3.0-9` to use it again).
+
+Earlier note on the alternative: athei's `arm64-*` builds (Mach9) are an arm64 Wine
+using FEX instead of Rosetta, with reduced (64-bit) x87 precision on by
+default. It needs a fresh arm64 prefix and `./run.sh install`, so it's a
+bigger change. Worth a look if the sidecar route fails.
+
+## Next steps (as of 1 Nov)
+
+Plan: update the Mac mini to macOS 26.5 (or 26.6) later, then test Mach9.
+`softwareupdate --list` offered no macOS update on 1 Nov, so it may need
+System Settings > Software Update > Other updates.
+
+1. After updating, check Mach9 starts at all:
+   `~/Applications/"Mach9 Wine"/wine/bin/wine --version` should print a
+   version, not the `_posix_spawnattr_set_4k_page_size_np` dyld error. If
+   the folder is gone, re-download `arm64-11.20-5` (or newer) from
+   `athei/wine-build`. If 26.5 still fails, the call probably needs 27.
+2. Fresh prefix and full install (an arm64 Wine cannot use the x86_64
+   prefix). Needs ~2 GB, plus the ~5 GB TLX wants free to start:
+   ```
+   WINEPREFIX=~/.wine-mach9 PAKON_WINE=~/Applications/"Mach9 Wine"/wine/bin/wine ./run.sh install
+   WINEPREFIX=~/.wine-mach9 PAKON_WINE=~/Applications/"Mach9 Wine"/wine/bin/wine ./run.sh
+   ```
+   The scanner shim `src/pkusb.dll` is a 32-bit PE DLL, so FEX should run it
+   like any other i386 code. Likely trouble spots: the OEM install and COM
+   registration under FEX. This M1 has no FEAT_AFP, which FEX uses for i386
+   programs, so speed may differ from athei's M5 figures.
+3. Rescan the 4-exposure strip, save colour 8-bit TIFF, time it (watcher
+   script idea: poll TLX CPU and the scans folder every 0.2 s), and compare
+   with `tools/compare_saves.py` against `~/Desktop/pakon-scans/slow/`
+   (stock) and `sidecar/`.
+4. Also after the update: re-run `x87sidecar --probe`, since a new Rosetta
+   can break its hooks. The CX Wine was deleted, so re-download
+   `cx-26.3.0-9` to use the sidecar again.
+
+Why bother with Mach9 when the sidecar works: it doesn't use Rosetta, which
+Apple has said will be cut back after macOS 27. Speed is not expected to
+beat the sidecar's ~3.3 s.
+
+## Earlier next steps (31 Oct, picking up on the Mac mini)
 
 1. **x87sidecar on the Mac mini** (macOS Tahoe, the platform it is tested
    on). See "Leads for a fix" above. Order: read the code; run
