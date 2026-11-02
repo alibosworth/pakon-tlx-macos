@@ -48,6 +48,8 @@ attaching rosettax87 --cooperative (.../x87sidecar) for .../TLXClientDemo.exe
 
 If it could not hook Rosetta, the log says `RUNNING WITHOUT X87 ACCELERATION` instead and TLX runs at the old speed. The binaries are ad-hoc signed rather than notarized, so they run from Terminal but Gatekeeper will refuse them if you try to open them from Finder.
 
+One thing that caught me out, though it has nothing to do with the sidecar: TLX refuses to start with less than about 5 GB free on the internal disk. It creates two 2.5 GB roll buffers (`PFS00.bin`, `PFS01.bin`) and checks for room for both up front. All you get is an initialise error, and only the OEM log says why (`FN_bSelectHardDriveFS EC_PFS_NotEnoughDiskSpace`). The patched Wine takes another 1.2 GB, which was enough to push my Mac mini under the limit.
+
 ### Does the output change?
 
 The sidecar does x87 maths in 64-bit doubles instead of the x87's 80-bit format. At the precision setting Windows programs run at by default, its README says the results match the hardware, but I wanted to check against real output.
@@ -65,6 +67,15 @@ Frames 2 to 4 differ by a few levels, sometimes lighter and sometimes darker, wh
 
 Raw saves were already instant on stock Wine, which suggests they do little or no x87 work, so I'd expect them to be unaffected. I haven't verified that byte for byte, since rescans differ anyway.
 
-### Not tried
+### Mach9 (no Rosetta): doesn't start on macOS 26.4.1 yet
 
-The same author also publishes `arm64-*` builds ([Mach9](https://github.com/athei/mach9)), an arm64 Wine that runs x86 code through FEX instead of Rosetta and does x87 at reduced precision by default. That might be another way round this, but it needs a fresh prefix and a full reinstall, so I stopped once the sidecar worked.
+The same author also publishes `arm64-*` builds of [Mach9](https://github.com/athei/mach9), an arm64 Wine that runs x86 code through FEX instead of Rosetta and does x87 at reduced precision by default. I wasn't expecting it to beat the sidecar on speed, but it doesn't depend on Rosetta, which Apple has said will be cut back after macOS 27, so it seemed worth knowing whether TLX runs on it.
+
+On macOS 26.4.1 it doesn't get that far. `arm64-11.20-5` dies at launch, before any Windows code runs:
+
+```
+dyld: Symbol not found: _posix_spawnattr_set_4k_page_size_np
+  Expected in: /usr/lib/libSystem.B.dylib
+```
+
+The loader says its minimum is macOS 26.4 but was built against the 26.5 SDK, and that function seems to need a newer macOS than 26.4.1. I'll update to 26.5 and try again. It will need a fresh prefix and a full `./run.sh install`, since an arm64 Wine can't use the existing x86_64 prefix. Scanner access should be fine: `src/pkusb.dll` is a plain 32-bit Windows DLL, which FEX runs like any other.
