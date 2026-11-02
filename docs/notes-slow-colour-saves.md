@@ -8,7 +8,7 @@ athei's patched Wine `cx-26.3.0-9` with its bundled x87sidecar. No x87
 aborts. Compared against a stock rescan, three of four frames differ by
 only a few levels (normal rescan variation); one is ~20 levels brighter,
 probably from reframing. Ali accepts the trade. See "x87sidecar setup on the
-Mac mini", "x87sidecar result" and "Stock vs sidecar comparison". Follow-up
+Mac mini", "x87sidecar result" and "Stock vs sidecar comparison". To set it up on another Mac, see "How to: set up the sidecar on another Mac". Follow-up
 for upstream issue #13: `docs/issue-13-followup-draft.md`.
 
 **1 Nov:** Mach9 (arm64 Wine + FEX, no Rosetta) won't start on macOS 26.4.1
@@ -264,6 +264,52 @@ been raw. Ali may never have saved colour-processed ("normal") before. If
 so, nothing regressed: colour saves have always cost ~25 s/frame on Apple
 Silicon, because Kodak's x87 maths runs through Rosetta's software x87
 emulator. The problem becomes a speed-up, not a regression hunt.
+
+## How to: set up the sidecar on another Mac (e.g. the M1 laptop)
+
+Your normal `~/.wine` + stock Wine setup is left alone; this runs beside it.
+The patched Wine's minimum is macOS 15. x87sidecar has mainly been tested on
+macOS 26/27, so on the laptop (15.7.7) the probe in step 1 decides whether
+it works at all. Disk: the patched Wine takes 1.2 GB, and TLX itself refuses
+to start with less than ~5 GB free.
+
+1. Probe (read-only):
+   ```
+   mkdir -p ~/x87probe && cd ~/x87probe
+   gh release download v1.9.0 -R athei/x87sidecar -p x87sidecar.tar.xz
+   shasum -a 256 x87sidecar.tar.xz   # 104098b0ba8baed37d4d63cf62ab3b55493889b8fe9ee225cad8febcd6bc1e78
+   tar xf x87sidecar.tar.xz && ./x87sidecar --probe
+   ```
+   Anything other than `supported` means stop: TLX would run at the old speed.
+2. Patched Wine:
+   ```
+   gh release download cx-26.3.0-9 -R athei/wine-build -p 'wine-cx-26.3.0-9-macos-x86_64.tar.xz'
+   shasum -a 256 wine-cx-26.3.0-9-macos-x86_64.tar.xz   # af3682051414eeffa5be48584a671790fd3852e980ff5acd38facff6f4bff1e9
+   mkdir -p ~/Applications/"Wine CX x87"
+   tar xf wine-cx-26.3.0-9-macos-x86_64.tar.xz -C ~/Applications/"Wine CX x87"
+   ```
+   The tarball and `~/x87probe` can then be deleted.
+3. Clone the prefix (with TLX stopped) and launch:
+   ```
+   ./run.sh stop
+   cp -c -R -p ~/.wine ~/.wine-x87
+   WINEPREFIX=~/.wine-x87 \
+   ROSETTA_X87_PATH=~/Applications/"Wine CX x87"/wine/bin/x87sidecar \
+   PAKON_WINE=~/Applications/"Wine CX x87"/wine/bin/wine ./run.sh
+   ```
+4. Confirm: `grep -a "attaching rosettax87\|RUNNING WITHOUT X87" /tmp/tlxclient.log`
+   should show the `attaching rosettax87 --cooperative` line.
+5. Time one colour 8-bit TIFF save: ~25 s stock, ~3.3 s expected.
+
+Troubleshooting:
+- "Initialize" error at start-up: almost certainly
+  `EC_PFS_NotEnoughDiskSpace` (free ~5 GB). Read the OEM log under
+  `~/.wine-x87/drive_c/Program Files/Pakon/F-X35 COM Server/Logs/`;
+  `./run.sh log` reads `~/.wine`, not the clone.
+- TLX dies with `EmulateForward on a synchronous exception`: relaunch with
+  `X87_PRECISE_FAULTS=1` added.
+- The binaries are ad-hoc signed (not notarized): run them from Terminal,
+  not Finder.
 
 ## x87sidecar setup on the Mac mini (31 Oct, afternoon)
 
